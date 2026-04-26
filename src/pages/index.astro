@@ -1,0 +1,191 @@
+---
+import Layout from '../layouts/Layout.astro';
+import photos from '../data/photos.json';
+
+// 1. Filter out only the photos that have the "favorite" tag (checking in lowercase to be safe)
+const favorites = photos.filter(photo => 
+    photo.tags.some(tag => tag.toLowerCase() === 'favorite')
+);
+
+// 2. Extract just the URLs to a simple array
+const favoriteUrls = favorites.map(photo => photo.url);
+
+// 3. Set a default image (the first favorite) so the HTML isn't empty before the JavaScript runs
+const defaultFallback = favoriteUrls.length > 0 ? favoriteUrls[0] : '';
+---
+
+<Layout title="The Fly Collection">
+    <section class="hero">
+
+		<div class="quotes-container">
+            <blockquote class="quote">
+                "The love for all living creatures, <br/> is the most noble attribute of man."
+                <cite>&mdash; Charles Darwin</cite>
+            </blockquote>
+            <blockquote class="quote">
+                "Look deep into nature, <br/> and then you will understand everything better."
+                <cite>&mdash; Albert Einstein</cite>
+            </blockquote>
+        </div>
+
+        <!-- NEW: Short Intro Paragraph -->
+        <p class="intro-paragraph">
+            Welcome to the Fly Collection!<br/>I do my best to take the best photos I can. Obviously, they ain't all Perfect, but Nature and life is also about those Inperfections.
+        </p>
+        
+        <a href="/gallery" class="cta-button">View the Gallery</a>
+    </section>
+
+    <!-- Featured Image Section -->
+    <section class="featured-image" id="featured-section">
+        {defaultFallback ? (
+            <img 
+                id="random-featured-img"
+                src={defaultFallback} 
+                alt="Featured Photography" 
+            />
+        ) : (
+            <p>No favorites tagged yet!</p>
+        )}
+    </section>
+</Layout>
+
+<style>
+    .hero {
+        text-align: center;
+        padding: 4rem 0;
+    }
+
+    .hero h1 {
+        font-size: 3.5rem;
+        line-height: 1.2;
+        margin-bottom: 1rem;
+        font-weight: 700;
+        letter-spacing: -1px;
+    }
+
+    .hero p {
+        font-size: 1.2rem;
+        color: var(--accent-color);
+        margin-bottom: 2.5rem;
+    }
+	    /* Quotes Styling */
+    .quotes-container {
+        display: flex;
+        justify-content: center;
+        gap: 3rem;
+        max-width: 900px;
+        margin: 0 auto 2.5rem auto;
+    }
+
+    .quote {
+        flex: 1;
+        font-family: 'Playfair Display', serif;
+        font-size: 1.25rem;
+        font-style: italic;
+        color: var(--accent-color);
+        line-height: 1.5;
+        text-align: center;
+    }
+
+    .quote cite {
+        display: block;
+        margin-top: 0.75rem;
+        font-size: 0.9rem;
+        font-family: 'Montserrat', sans-serif;
+        font-style: normal;
+        font-weight: 600;
+        color: var(--savanna-gold);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .intro-paragraph {
+        font-size: 1.1rem;
+        color: var(--text-color);
+        max-width: 700px;
+        margin: 0 auto 2rem auto;
+        line-height: 1.7;
+    }
+
+    .cta-button {
+        display: inline-block;
+        background-color: var(--text-color);
+        color: var(--bg-color);
+        padding: 0.8rem 2rem;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: 600;
+        transition: opacity 0.3s ease;
+    }
+
+    .cta-button:hover {
+        opacity: 0.8;
+    }
+
+/* 1. Make the container a centering wrapper */
+    .featured-image, .trip-hero {
+        margin-top: 3rem; /* Added a little extra margin to account for the outline */
+        margin-bottom: 3rem;
+        width: 100%;
+        display: flex;
+        justify-content: center; /* Centers vertical images perfectly */
+        align-items: center;
+    }
+
+    /* If the image is inside an anchor link (like on the recent page), 
+       make sure the link tightly wraps the image */
+    .featured-image a, .trip-hero a {
+        display: inline-block;
+        max-width: 100%;
+    }
+
+    /* 2. Move the gold outline and shadow directly to the image */
+    .featured-image img, .trip-hero img {
+        display: block;
+        
+        /* This combination allows horizontal images to fill the screen, 
+           and vertical images to shrink their width to match their height */
+        max-width: 100%;
+        max-height: 700px;
+        width: auto;
+        height: auto;
+        
+        border-radius: 4px;
+
+        /* The Frame Styling */
+        outline: 2px solid var(--savanna-gold);
+        outline-offset: 8px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        
+        transition: transform 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    /* 3. The Hover Lift Effect */
+    .featured-image a:hover img, 
+    .trip-hero a:hover img,
+    .featured-image img:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 25px 45px rgba(0,0,0,0.15);
+    }
+</style>
+
+<!-- Astro's define:vars allows us to securely pass the array from the backend to the frontend JS! -->
+<script define:vars={{ favoriteUrls }}>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Only run if we actually have more than 1 favorite photo
+        if (favoriteUrls.length > 1) {
+            
+            // 1. Pick a random number between 0 and the total number of favorites
+            const randomIndex = Math.floor(Math.random() * favoriteUrls.length);
+            const chosenUrl = favoriteUrls[randomIndex];
+            
+            const imgElement = document.getElementById('random-featured-img');
+            
+            // 2. Only swap the image if the random one is different from the default
+            if (imgElement && imgElement.src !== chosenUrl) {
+                imgElement.src = chosenUrl;
+            }
+        }
+    });
+</script>

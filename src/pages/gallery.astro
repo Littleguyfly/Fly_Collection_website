@@ -1,0 +1,412 @@
+---
+import Layout from '../layouts/Layout.astro';
+import photos from '../data/photos.json';
+
+const knownLocations = ['all zoos','dallas zoo', 'fort worth zoo', 'st louis zoo', "insync", "zootampa", 'atlanta zoo',
+'busch gardens','all aquariums', 'georgia aquarium', 'dallas aquarium', 'florida aquarium'];
+const pinnedLocations = ['all zoos', 'all aquariums'];
+// Define your core groups explicitly so we can use them for the "Misc" math
+const coreGroups = ['big cats', 'primates', 'birds', 'reptiles & amphibians', 'people', 'phone photos'];
+const systemTags = ['favorite', 'misc']; // Added misc to system tags so it doesn't show up as a "Specific" animal
+
+const dateRegex = /^\d{2}-\d{2}-\d{2,4}$/;
+
+const animalHierarchy = {
+    "tiger": ["sumatran tiger", "bengal tiger", "siberian tiger", "malayian tiger"],
+    "leopard": ["african leopard", "clouded leopard", "amur leopard", "snow leopard"],
+    "lion": ["african lion", "asiatic lion"],
+    "bear": ["grizzly bear", "polar bear", "black bear", "sloth bear"]
+};
+
+const definedParents = Object.keys(animalHierarchy);
+const definedChildren = Object.values(animalHierarchy).flat();
+
+const allTags = [...new Set(photos.flatMap(photo => photo.tags.map(t => t.toLowerCase())))];
+
+const locations = allTags
+    .filter(tag => knownLocations.includes(tag))
+    .sort((a, b) => {
+        const aIsPinned = pinnedLocations.includes(a);
+        const bIsPinned = pinnedLocations.includes(b);
+
+        // If 'a' is pinned but 'b' is not, 'a' goes to the top
+        if (aIsPinned && !bIsPinned) return -1;
+        // If 'b' is pinned but 'a' is not, 'b' goes to the top
+        if (!aIsPinned && bIsPinned) return 1;
+        
+        // If BOTH are pinned, sort them in the exact order you defined in pinnedLocations array
+        if (aIsPinned && bIsPinned) return pinnedLocations.indexOf(a) - pinnedLocations.indexOf(b);
+        
+        // For everything else, just sort them alphabetically!
+        return a.localeCompare(b);
+
+    });
+
+// 1. DYNAMIC GROUPS: Combine core groups with 'misc' for the dropdown
+const groups = [...coreGroups.filter(tag => allTags.includes(tag)), 'misc'];
+
+const dates = allTags
+    .filter(tag => dateRegex.test(tag))
+    .sort((a, b) => new Date(b.replace(/-/g, '/')).getTime() - new Date(a.replace(/-/g, '/')).getTime());
+
+const rawSpecifics = allTags.filter(tag => 
+    !knownLocations.includes(tag) && 
+    !coreGroups.includes(tag) && 
+    !systemTags.includes(tag) &&
+    !dateRegex.test(tag) 
+);
+
+// 2. BUILD THE ORGANIZED SPECIFICS CHEAT SHEET (With formatting)
+const organizedSpecifics = [];
+definedParents.sort().forEach(parent => {
+    const children = animalHierarchy[parent];
+    const presentChildren = children.filter(c => rawSpecifics.includes(c)).sort();
+    const hasParent = rawSpecifics.includes(parent);
+
+    if (hasParent || presentChildren.length > 0) {
+        if (hasParent) organizedSpecifics.push({ value: parent, display: parent });
+        presentChildren.forEach(child => {
+            // Using &nbsp; preserves the visual indentation
+            organizedSpecifics.push({ value: child, display: `\u00A0\u00A0\u00A0\u00A0|-> ${child}` });
+        });
+    }
+});
+
+const orphans = rawSpecifics.filter(tag => !definedParents.includes(tag) && !definedChildren.includes(tag)).sort();
+orphans.forEach(orphan => { organizedSpecifics.push({ value: orphan, display: orphan }); });
+
+// 3. BUILD THE "GROUP TO SPECIFICS" MAPPING FOR THE SMART DROPDOWN
+// This tells the Javascript exactly which specific animals belong to which groups!
+const groupToSpecificsMap = { misc: new Set() };
+coreGroups.forEach(g => groupToSpecificsMap[g] = new Set());
+
+photos.forEach(photo => {
+    const pTags = photo.tags.map(t => t.toLowerCase());
+    
+    // Find which core groups this photo belongs to
+    let pGroups = pTags.filter(t => coreGroups.includes(t));
+    
+    // The "Misc" Logic: If it has the 'misc' tag OR it has no core group tags
+    if (pTags.includes('misc') || pGroups.length === 0) {
+        pGroups.push('misc');
+    }
+
+    // Find the specific animals in this photo
+    const pSpecifics = pTags.filter(tag => 
+        !knownLocations.includes(tag) && 
+        !coreGroups.includes(tag) && 
+        !systemTags.includes(tag) &&
+        !dateRegex.test(tag)
+    );
+
+    // Map those specific animals to their groups
+    pGroups.forEach(g => {
+        if(groupToSpecificsMap[g]) {
+            pSpecifics.forEach(s => groupToSpecificsMap[g].add(s));
+        }
+    });
+});
+
+// Convert Sets to Arrays so we can pass them to Javascript
+const groupToSpecifics = {};
+for (const [key, value] of Object.entries(groupToSpecificsMap)) {
+    groupToSpecifics[key] = Array.from(value);
+}
+
+const capitalize = (str) => str.replace(/\b\w/g, char => char.toUpperCase());
+---
+---
+
+<Layout title="The Fly Collection Photos">
+    <h2>All Photos</h2>
+    
+    <!-- Filter Controls -->
+    <div class="filter-controls">
+        <div class="select-wrapper">
+            <label for="location-filter">Location</label>
+            <select id="location-filter">
+                <option value="all">All Locations</option>
+                {locations.map(tag => (
+                    <option value={tag}>{capitalize(tag)}</option>
+                ))}
+            </select>
+        </div>
+
+        <div class="select-wrapper">
+            <label for="group-filter">Animal Group</label>
+            <select id="group-filter">
+                <option value="all">All Groups</option>
+                {groups.map(tag => (
+                    <option value={tag}>{capitalize(tag)}</option>
+                ))}
+            </select>
+        </div>
+
+        <div class="select-wrapper">
+            <label for="specific-filter">Specific Animal</label>
+            <select id="specific-filter">
+                <option value="all">All Animals</option>
+                {organizedSpecifics.map(item => (
+                    <option value={item.value}>{capitalize(item.display)}</option>
+                ))}
+            </select>
+        </div>
+
+        <!-- NEW: Date Dropdown -->
+        <div class="select-wrapper">
+            <label for="date-filter">Date</label>
+            <select id="date-filter">
+                <option value="all">All Dates</option>
+                {dates.map(tag => (
+                    <option value={tag}>{tag}</option>
+                ))}
+            </select>
+        </div>
+
+        <div class="checkbox-wrapper">
+            <input type="checkbox" id="favorite-filter" />
+            <label for="favorite-filter">Show Favorites Only ⭐️</label>
+        </div>
+    </div>
+
+    <!-- Gallery Grid (Masonry Layout) -->
+    <div class="gallery" id="gallery-container">
+        {photos.map((photo) => (
+            <div class="photo-item" data-tags={photo.tags.map(t => t.toLowerCase()).join(',')}>
+                <!-- Optional: Adding ImageKit compression parameter ?tr=w-800 for thumbnails -->
+                <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                    <img src={`${photo.url}?tr=w-800`} alt="Wildlife Photography" loading="lazy" />
+                </a>
+            </div>
+        ))}
+    </div>
+
+    <!-- Fallback if user has JavaScript completely disabled -->
+    <noscript>
+        <style>
+            #gallery-container { opacity: 1 !important; }
+        </style>
+    </noscript>
+</Layout>
+
+<style>
+    .filter-controls {
+        display: flex;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        background: #f4f4f4;
+        padding: 1.5rem;
+        border-radius: 8px;
+        align-items: flex-end; 
+    }
+
+    .select-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-width: 160px; /* slightly smaller to fit 4 dropdowns nicely */
+    }
+
+    .select-wrapper label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    select {
+        padding: 0.75rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 1rem;
+        background-color: white;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .checkbox-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding-bottom: 0.75rem; 
+        cursor: pointer;
+    }
+
+    .checkbox-wrapper input[type="checkbox"] {
+        width: 1.25rem;
+        height: 1.25rem;
+        cursor: pointer;
+        accent-color: #1a1a1a; 
+    }
+
+    .checkbox-wrapper label {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1a1a1a;
+        cursor: pointer;
+        user-select: none; 
+    }
+
+    /* Masonry Mosaic Layout */
+    .gallery {
+        column-count: 3;
+        column-gap: 1rem;
+        width: 100%;
+        margin-top: 1rem;
+        /* NEW: Start transparent to hide the shuffle */
+        opacity: 0; 
+        transition: opacity 0.6s ease-in-out;
+    }
+
+    /* NEW: Class added by JS after shuffling is done */
+    .gallery.ready {
+        opacity: 1; 
+    }
+    
+    .photo-item { 
+        break-inside: avoid; 
+        margin-bottom: 1rem; 
+        transition: opacity 0.4s ease; 
+        border-radius: 8px;
+        overflow: hidden; 
+    }
+
+    .photo-item a {
+        display: block;
+        cursor: zoom-in; 
+    }
+    
+    .photo-item img { 
+        width: 100%; 
+        height: auto; 
+        display: block;
+        transition: transform 0.3s ease; 
+    }
+
+    .photo-item:hover img {
+        transform: scale(1.03); 
+    }
+
+    @media (max-width: 900px) {
+        .gallery { column-count: 2; }
+    }
+    @media (max-width: 600px) {
+        .gallery { column-count: 1; }
+    }
+</style>
+
+<script define:vars={{ coreGroups, groupToSpecifics, organizedSpecifics }}>
+    document.addEventListener('DOMContentLoaded', () => {
+        const galleryContainer = document.getElementById('gallery-container');
+        let itemsArray = Array.from(galleryContainer.querySelectorAll('.photo-item'));
+
+        // 1. Shuffle Logic
+        for (let i = itemsArray.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [itemsArray[i], itemsArray[j]] = [itemsArray[j], itemsArray[i]];
+        }
+        itemsArray.forEach(item => galleryContainer.appendChild(item));
+        galleryContainer.classList.add('ready');
+
+
+        // 2. HTML Elements
+        const locationSelect = document.getElementById('location-filter');
+        const groupSelect = document.getElementById('group-filter');
+        const specificSelect = document.getElementById('specific-filter');
+        const dateSelect = document.getElementById('date-filter');
+        const favoriteCheckbox = document.getElementById('favorite-filter');
+        const items = document.querySelectorAll('.photo-item');
+
+        // Capitalize helper for JS
+        const capitalize = (str) => str.replace(/\b\w/g, char => char.toUpperCase());
+
+        // =========================================
+        // 3. SMART DROPDOWN LOGIC
+        // =========================================
+        function updateSpecificDropdown() {
+            const selectedGroup = groupSelect.value;
+            const currentSpecificVal = specificSelect.value; // Remember what they had selected
+            
+            // Clear the specific dropdown entirely
+            specificSelect.innerHTML = '<option value="all">All Animals</option>';
+            
+            const validSpecifics = groupToSpecifics[selectedGroup] || [];
+            let currentStillValid = false;
+
+            // Rebuild the options based on the selected group
+            organizedSpecifics.forEach(opt => {
+                if (selectedGroup === 'all' || validSpecifics.includes(opt.value)) {
+                    const newOpt = document.createElement('option');
+                    newOpt.value = opt.value;
+                    // Capitalize the display text before injecting it
+                    newOpt.innerHTML = capitalize(opt.display); 
+                    specificSelect.appendChild(newOpt);
+
+                    if (opt.value === currentSpecificVal) currentStillValid = true;
+                }
+            });
+
+            // If the specific animal they were looking at disappeared, reset it to "all"
+            if (!currentStillValid && currentSpecificVal !== 'all') {
+                specificSelect.value = 'all';
+            } else {
+                specificSelect.value = currentSpecificVal;
+            }
+        }
+
+        // =========================================
+        // 4. IMAGE FILTERING LOGIC
+        // =========================================
+        function filterPhotos() {
+            const locVal = locationSelect.value;
+            const groupVal = groupSelect.value;
+            const specVal = specificSelect.value;
+            const dateVal = dateSelect.value;
+            const isFavChecked = favoriteCheckbox.checked; 
+
+            items.forEach(item => {
+                const itemTags = item.getAttribute('data-tags').split(',');
+
+                const matchLoc = (locVal === 'all') || itemTags.includes(locVal);
+                const matchSpec = (specVal === 'all') || itemTags.includes(specVal);
+                const matchDate = (dateVal === 'all') || itemTags.includes(dateVal);
+                const matchFav = (!isFavChecked) || itemTags.includes('favorite');
+
+                // NEW: The "Misc" Group matching logic
+                let matchGroup = false;
+                if (groupVal === 'all') {
+                    matchGroup = true;
+                } else if (groupVal === 'misc') {
+                    // It's Misc if it has the misc tag, OR if it has NO core groups
+                    const hasCoreGroup = itemTags.some(t => coreGroups.includes(t));
+                    matchGroup = itemTags.includes('misc') || !hasCoreGroup;
+                } else {
+                    matchGroup = itemTags.includes(groupVal);
+                }
+
+                if (matchLoc && matchGroup && matchSpec && matchDate && matchFav) {
+                    item.style.display = 'block';
+                    setTimeout(() => item.style.opacity = '1', 10); 
+                } else {
+                    item.style.opacity = '0';
+                    setTimeout(() => item.style.display = 'none', 400); 
+                }
+            });
+        }
+
+        // Add event listeners
+        locationSelect.addEventListener('change', filterPhotos);
+        dateSelect.addEventListener('change', filterPhotos);
+        favoriteCheckbox.addEventListener('change', filterPhotos);
+        specificSelect.addEventListener('change', filterPhotos);
+        
+        // When group changes, update the smart dropdown FIRST, then filter photos
+        groupSelect.addEventListener('change', () => {
+            updateSpecificDropdown();
+            filterPhotos();
+        });
+
+    });
+</script>

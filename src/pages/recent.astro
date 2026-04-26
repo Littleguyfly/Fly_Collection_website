@@ -1,0 +1,264 @@
+---
+import Layout from '../layouts/Layout.astro';
+import photos from '../data/photos.json';
+
+// 1. Setup known variables
+const knownLocations = ['dallas zoo', 'fort worth zoo', 'st louis zoo', "insync", "zootampa"];
+const dateRegex = /^\d{2}-\d{2}-\d{2,4}$/;
+
+// 2. Get ALL unique dates across all photos and sort them newest to oldest
+const allTags = [...new Set(photos.flatMap(p => p.tags.map(t => t.toLowerCase())))];
+const sortedDates = allTags
+    .filter(tag => dateRegex.test(tag))
+    .sort((a, b) => new Date(b.replace(/-/g, '/')).getTime() - new Date(a.replace(/-/g, '/')).getTime());
+
+// 3. Grab ONLY the top 2 most recent dates
+const recentDates = sortedDates.slice(0, 2);
+
+// 4. Build our "Trips" data array
+const trips = recentDates.map((dateStr, index) => {
+    // Get all photos from this specific date
+    const tripPhotos = photos.filter(p => p.tags.map(t => t.toLowerCase()).includes(dateStr));
+    
+    // Scan the trip's photos to find out where this trip was
+    let location = "Recent Adventure"; // Fallback if no location tag is found
+    for (const photo of tripPhotos) {
+        const locTag = photo.tags.map(t => t.toLowerCase()).find(t => knownLocations.includes(t));
+        if (locTag) {
+            location = locTag;
+            break; // Stop looking once we find a known location
+        }
+    }
+
+    // Separate the favorites so the JS can pick one randomly later
+    const favoriteUrls = tripPhotos
+        .filter(p => p.tags.map(t => t.toLowerCase()).includes('favorite'))
+        .map(p => p.url);
+
+    return {
+        id: `trip-${index}`, // Unique ID for our Javascript to target
+        date: dateStr,
+        location: location,
+        favoriteUrls: favoriteUrls,
+        photos: tripPhotos
+    };
+});
+
+const capitalize = (str) => str.replace(/\b\w/g, char => char.toUpperCase());
+---
+
+<Layout title="Recent Trips | Portfolio">
+    <div class="page-header">
+        <h2>Recent Trips</h2>
+        <p>My latest Zoo and Other trips.</p>
+    </div>
+
+    <div class="trips-container">
+        {trips.length === 0 ? (
+            <p>No recent trips found. Check back later!</p>
+        ) : (
+            trips.map((trip) => (
+                <section class="trip-section">
+                    <!-- Trip Header -->
+                    <div class="trip-header">
+                        <h3>{capitalize(trip.location)}</h3>
+                        <span class="trip-date">{trip.date.replace(/-/g, '/')}</span>
+                    </div>
+
+                    <!-- The Featured "Favorite" Hero Image (Only renders if favorites exist) -->
+                    {trip.favoriteUrls.length > 0 && (
+                        <div class="trip-hero">
+                            <a href={trip.favoriteUrls[0]} target="_blank" rel="noopener noreferrer" id={`link-${trip.id}`}>
+                                <img 
+                                    id={`img-${trip.id}`}
+                                    src={`${trip.favoriteUrls[0]}?tr=w-1200`} 
+                                    alt={`Featured from ${trip.location}`} 
+                                    loading="lazy"
+                                />
+                            </a>
+                        </div>
+                    )}
+
+                    <!-- The Trip Gallery Grid -->
+                    <div class="gallery">
+                        {trip.photos.map(photo => (
+                            <div class="photo-item">
+                                <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                                    <img src={`${photo.url}?tr=w-800`} alt="Trip Photo" loading="lazy" />
+                                </a>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <hr class="trip-divider" />
+                </section>
+            ))
+        )}
+    </div>
+</Layout>
+
+<style>
+    .page-header {
+        text-align: center;
+        margin-bottom: 4rem;
+    }
+
+    .page-header h2 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .page-header p {
+        color: #666;
+        font-size: 1.1rem;
+    }
+
+    .trip-section {
+        margin-bottom: 5rem;
+    }
+
+    .trip-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #eaeaea;
+    }
+
+    .trip-header h3 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1;
+    }
+
+    .trip-date {
+        font-size: 1.1rem;
+        color: #888;
+        font-weight: 500;
+    }
+    
+/* 1. Make the container a centering wrapper */
+    .featured-image, .trip-hero {
+        margin-top: 3rem; /* Added a little extra margin to account for the outline */
+        margin-bottom: 3rem;
+        width: 100%;
+        display: flex;
+        justify-content: center; /* Centers vertical images perfectly */
+        align-items: center;
+    }
+
+    /* If the image is inside an anchor link (like on the recent page), 
+       make sure the link tightly wraps the image */
+    .featured-image a, .trip-hero a {
+        display: inline-block;
+        max-width: 100%;
+    }
+
+    /* 2. Move the gold outline and shadow directly to the image */
+    .featured-image img, .trip-hero img {
+        display: block;
+        
+        /* This combination allows horizontal images to fill the screen, 
+           and vertical images to shrink their width to match their height */
+        max-width: 100%;
+        max-height: 700px;
+        width: auto;
+        height: auto;
+        
+        border-radius: 4px;
+
+        /* The Frame Styling */
+        outline: 2px solid var(--savanna-gold);
+        outline-offset: 8px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        
+        transition: transform 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    /* 3. The Hover Lift Effect */
+    .featured-image a:hover img, 
+    .trip-hero a:hover img,
+    .featured-image img:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 25px 45px rgba(0,0,0,0.15);
+    }
+
+    /* Masonry Gallery Styling (Re-used from main gallery) */
+    .gallery {
+        column-count: 3;
+        column-gap: 1rem;
+        width: 100%;
+    }
+    
+    .photo-item { 
+        break-inside: avoid; 
+        margin-bottom: 1rem; 
+        border-radius: 8px;
+        overflow: hidden; 
+    }
+
+    .photo-item a {
+        display: block;
+        cursor: zoom-in; 
+    }
+    
+    .photo-item img { 
+        width: 100%; 
+        height: auto; 
+        display: block;
+        transition: transform 0.3s ease; 
+    }
+
+    .photo-item:hover img {
+        transform: scale(1.03); 
+    }
+
+    .trip-divider {
+        margin-top: 4rem;
+        border: 0;
+        height: 1px;
+        background: #eaeaea;
+    }
+
+    /* Hide the divider on the very last trip */
+    .trip-section:last-of-type .trip-divider {
+        display: none;
+    }
+
+    @media (max-width: 900px) {
+        .gallery { column-count: 2; }
+        .trip-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    }
+    @media (max-width: 600px) {
+        .gallery { column-count: 1; }
+    }
+</style>
+
+<!-- Pass the 'trips' data to the client to handle the random favorite selection -->
+<script define:vars={{ trips }}>
+    document.addEventListener('DOMContentLoaded', () => {
+        
+        trips.forEach(trip => {
+            // Only do the random math if this trip actually has multiple favorites
+            if (trip.favoriteUrls && trip.favoriteUrls.length > 1) {
+                
+                const randomIndex = Math.floor(Math.random() * trip.favoriteUrls.length);
+                const randomUrl = trip.favoriteUrls[randomIndex];
+
+                // Target the specific Hero image and link for THIS trip using the unique ID
+                const imgElement = document.getElementById(`img-${trip.id}`);
+                const linkElement = document.getElementById(`link-${trip.id}`);
+
+                if (imgElement && linkElement) {
+                    // Update the image source (keeping Imagekit's compression parameter)
+                    imgElement.src = `${randomUrl}?tr=w-1200`;
+                    // Update the link so clicking it opens the correct high-res random image!
+                    linkElement.href = randomUrl;
+                }
+            }
+        });
+
+    });
+</script>
