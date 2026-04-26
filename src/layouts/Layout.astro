@@ -26,7 +26,7 @@ const { title } = Astro.props;
         <div class="header-content">
             <div class="logo">
                 <a href="/">
-                    <img src="./The.png" alt="Fly Collection Logo" class="logo-img" />
+                    <img src="/The.png" alt="Fly Collection Logo" class="logo-img" />
                     <span class="logo-text">The Fly Collection</span>
                 </a>
             </div>
@@ -164,6 +164,29 @@ const { title } = Astro.props;
 
     .site-nav a:hover {
         color: var(--savanna-gold);
+    }
+
+    /* Mobile handling: Stacks everything nicely and prevents screen overflow */
+    @media (max-width: 768px) {
+        .header-content {
+            flex-direction: column;
+            gap: 1.2rem;
+            padding: 1.5rem 5%;
+        }
+        
+        .site-nav {
+            flex-wrap: wrap; /* NEW: Allows links to drop to a second line if the phone is skinny */
+            justify-content: center; /* Keeps the links perfectly centered */
+            gap: 1rem; /* Smaller gap between links on mobile */
+        }
+        
+        .site-nav a {
+            font-size: 0.8rem; /* Slightly smaller text for mobile screens */
+        }
+
+        .logo-img {
+            max-height: 40px; /* Slightly smaller logo on mobile */
+        }
     }
 
     /* Main & Footer remain similar */
