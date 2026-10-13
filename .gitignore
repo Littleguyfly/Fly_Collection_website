@@ -22,3 +22,10 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+/.vs/Fly_Collection_website.slnx/FileContentIndex/2d7d75f3-049d-45a4-8a07-63413a555484.vsidx
+/.vs/Fly_Collection_website.slnx/FileContentIndex/4e39a017-c438-48cb-b0cd-a71986f4f315.vsidx
+*.vsidx
+/.vs/Fly_Collection_website.slnx/v18/.wsuo
+*.json
+/.vs/slnx.sqlite
+*.sqlite-journal
